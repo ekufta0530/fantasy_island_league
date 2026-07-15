@@ -1,6 +1,6 @@
 // lib/stats/bench-tax-data.ts
 import { getSeasonSnapshot } from './season-snapshot'
-import { getPlayerPositionsMap, getPlayerNamesMap } from './player-data'
+import { getPlayerEligiblePositionsMap, getPlayerNamesMap } from './player-data'
 import { computeSeasonBenchTax, SeasonBenchTax } from './bench-tax'
 import { CURRENT_LEAGUE_ID } from '../constants'
 
@@ -56,7 +56,7 @@ export async function getBenchTaxData(leagueId: string = CURRENT_LEAGUE_ID): Pro
   }))
 
   const [playerPositions, playerNames] = await Promise.all([
-    getPlayerPositionsMap(),
+    getPlayerEligiblePositionsMap(),
     getPlayerNamesMap(),
   ])
 

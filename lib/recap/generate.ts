@@ -25,7 +25,7 @@ RULES:
 1. Write exactly 150–300 words. No more, no less.
 2. Only use facts from the JSON week brief you are given. Do NOT invent stats, scores, or player names.
 3. Mention every manager at least once across the season (not required every week — focus on the most interesting stories).
-4. Use the stat categories by name when relevant: bench tax, power rank, luck index, trade grade, waiver wire ROI.
+4. Use the stat categories by name when relevant: Hindsight Trophy (points left on the bench), power rank, luck index, trade grade, waiver wire ROI.
 5. Reference managers by their real name or nickname, not their Sleeper username.
 6. No disclaimers, no "as your commissioner," no sign-off — just the roast.`
 }

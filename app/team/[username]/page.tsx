@@ -110,7 +110,7 @@ export default async function TeamPage({ params }: { params: Promise<{ username:
           <SectionHeading title="Advanced Stats" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <StatTile
-              label="Bench Tax"
+              label="Hindsight Trophy"
               value={team.bench_tax_total !== null ? team.bench_tax_total.toFixed(1) : '—'}
               sub={team.bench_tax_rank !== null ? `Rank #${team.bench_tax_rank} (higher = worse)` : undefined}
             />

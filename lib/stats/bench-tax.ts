@@ -1,6 +1,10 @@
 // lib/stats/bench-tax.ts
+//
+// "Hindsight Trophy" engine — the gap between the highest-scoring lineup a
+// manager could have started (given hindsight of final scores) and the one
+// they actually played.
 
-/** Position eligibility for each slot type */
+/** Position eligibility for each starting slot type */
 export const SLOT_ELIGIBILITY: Record<string, string[]> = {
   QB: ['QB'],
   RB: ['RB'],
@@ -10,19 +14,21 @@ export const SLOT_ELIGIBILITY: Record<string, string[]> = {
   SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'],
   K: ['K'],
   DEF: ['DEF'],
-  // IDP slots (ignore for optimal lineup — not standard)
+  // IDP slots
   DL: ['DL'],
   LB: ['LB'],
   DB: ['DB'],
+  IDP_FLEX: ['DL', 'LB', 'DB'],
   // BN, IR, TAXI are bench — not counted in optimal
 }
 
 /** Slots that count toward the starting lineup (not bench/IR/TAXI) */
-const STARTING_SLOTS = new Set(['QB','RB','WR','TE','FLEX','SUPER_FLEX','K','DEF','DL','LB','DB'])
+const STARTING_SLOTS = new Set(Object.keys(SLOT_ELIGIBILITY))
 
 export interface PlayerPointEntry {
   player_id: string
-  position: string   // from /players/nfl
+  /** All fantasy-eligible positions for this player (from Sleeper's fantasy_positions), not just their primary position — a player can legally fill any slot matching any of these. */
+  positions: string[]
   points: number
 }
 
@@ -30,7 +36,14 @@ export interface OptimalLineupResult {
   optimal_points: number
   actual_points: number
   bench_tax: number
-  /** Specific players that were benched but should have started, sorted by point delta desc */
+  /**
+   * Real, slot-eligible swap suggestions: each entry pairs a benched player
+   * who genuinely wasn't started anywhere with an actual starter who
+   * genuinely wasn't part of the optimal lineup anywhere AND occupied a
+   * slot the benched player was legally eligible for — so every suggestion
+   * here is a substitution that could actually have been made.
+   * Sorted by point delta descending (worst decision first).
+   */
   missed_starts: Array<{
     benched_player_id: string
     benched_points: number
@@ -45,82 +58,93 @@ export interface OptimalLineupResult {
  * Compute the optimal lineup for a single roster in a single week.
  *
  * @param rosterPositions - league.roster_positions e.g. ["QB","RB","RB","WR","WR","TE","FLEX","BN","BN"]
- * @param starters        - player_ids actually started (in slot order matching rosterPositions)
- * @param allPlayers      - ALL players on the roster (starters + bench) with their position + points this week
+ * @param starters        - player_ids actually started, in slot order matching the starting-slot prefix of rosterPositions (Sleeper's convention)
+ * @param allPlayers      - ALL players on the roster (starters + bench) with their eligible positions + points this week
  */
 export function computeOptimalLineup(
   rosterPositions: string[],
   starters: string[],
   allPlayers: PlayerPointEntry[]
 ): OptimalLineupResult {
-  // Only consider starting slots
+  // Only consider starting slots, in the order Sleeper lists them — this
+  // order matches the `starters` array 1:1 (Sleeper convention: starters[i]
+  // fills the i-th starting slot in roster_positions).
   const startingSlots = rosterPositions.filter(slot => STARTING_SLOTS.has(slot))
+  const playerById = new Map(allPlayers.map(p => [p.player_id, p]))
 
   // Sort players by points descending
   const sorted = [...allPlayers].sort((a, b) => b.points - a.points)
 
-  // Greedy assignment: assign best available eligible player to each slot
-  // Process FLEX/SUPER_FLEX last so dedicated slots (QB, RB, WR, TE) get first pick
-  const slotPriority = (slot: string) => {
-    if (slot === 'SUPER_FLEX') return 2
-    if (slot === 'FLEX') return 1
-    return 0
-  }
-  const orderedSlots = [...startingSlots].sort((a, b) => slotPriority(a) - slotPriority(b))
+  // Greedy assignment: assign best available eligible player to each slot.
+  // Process slots from most-restrictive to least-restrictive eligibility
+  // (dedicated slots, then FLEX, then SUPER_FLEX/IDP_FLEX) — since these
+  // eligibility sets are nested/laminar (QB/RB/WR/TE ⊂ FLEX ⊂ SUPER_FLEX;
+  // DL/LB/DB ⊂ IDP_FLEX), this greedy order is provably optimal, not just
+  // a heuristic.
+  const slotPriority = (slot: string) => SLOT_ELIGIBILITY[slot]?.length ?? 0
+  const slotOrder = startingSlots
+    .map((slot, index) => ({ slot, index }))
+    .sort((a, b) => slotPriority(a.slot) - slotPriority(b.slot))
 
   const used = new Set<string>()
-  const optimalAssignment: Array<{ slot: string; player_id: string; points: number }> = []
+  // optimal pick per starting-slot index (aligned with startingSlots/starters)
+  const optimalBySlotIndex = new Map<number, { player_id: string; points: number }>()
 
-  for (const slot of orderedSlots) {
-    const eligible = (SLOT_ELIGIBILITY[slot] ?? [])
-    // Find highest-scoring unused eligible player
-    const best = sorted.find(p => eligible.includes(p.position) && !used.has(p.player_id))
+  for (const { slot, index } of slotOrder) {
+    const eligible = SLOT_ELIGIBILITY[slot] ?? []
+    const best = sorted.find(p => !used.has(p.player_id) && p.positions.some(pos => eligible.includes(pos)))
     if (best) {
       used.add(best.player_id)
-      optimalAssignment.push({ slot, player_id: best.player_id, points: best.points })
+      optimalBySlotIndex.set(index, { player_id: best.player_id, points: best.points })
     }
   }
 
-  const optimal_points = optimalAssignment.reduce((s, a) => s + a.points, 0)
+  const optimal_points = [...optimalBySlotIndex.values()].reduce((s, a) => s + a.points, 0)
 
-  // Actual points: sum of starters' points (players in the starters array)
-  const starterSet = new Set(starters)
-  const actual_points = allPlayers
-    .filter(p => starterSet.has(p.player_id))
-    .reduce((s, p) => s + p.points, 0)
+  // Actual points: sum of starters' points (whoever was actually started, in any slot)
+  const actual_points = starters.reduce((s, pid) => s + (playerById.get(pid)?.points ?? 0), 0)
 
   const bench_tax = Math.max(0, optimal_points - actual_points)
 
-  // Find missed starts: symmetric diff between optimal and actual player sets.
-  // Players in optimal but not actual = should have started (benched).
-  // Players in actual but not optimal = shouldn't have started (wrongly started).
+  // Find missed starts: players the optimal lineup wanted but who weren't
+  // started anywhere, paired with actual starters who weren't part of the
+  // optimal lineup anywhere AND whose slot the benched player could legally
+  // have filled. Excluding players who appear in both lineups (just at a
+  // different, equally-valid slot) avoids flagging harmless reshuffles as
+  // "missed starts."
   const missed_starts: OptimalLineupResult['missed_starts'] = []
   if (bench_tax > 0) {
-    const actualMap = new Map(allPlayers.map(p => [p.player_id, p]))
-    const optimalPlayerIds = new Set(optimalAssignment.map(a => a.player_id))
+    const optimalPlayerIds = new Set([...optimalBySlotIndex.values()].map(a => a.player_id))
+    const starterIds = new Set(starters)
 
-    // Benched players that should have started, sorted by points desc
-    const shouldHaveStarted = optimalAssignment
-      .filter(a => !starterSet.has(a.player_id))
+    const shouldHaveStarted = [...optimalBySlotIndex.values()]
+      .filter(a => !starterIds.has(a.player_id))
       .sort((a, b) => b.points - a.points)
 
-    // Started players that shouldn't have, sorted by points asc (worst choices first)
-    const shouldHaveBeenBenched = [...starterSet]
-      .map(id => actualMap.get(id))
-      .filter((p): p is PlayerPointEntry => !!p && !optimalPlayerIds.has(p.player_id))
-      .sort((a, b) => a.points - b.points)
+    const shouldHaveBeenBenched = starters
+      .map((pid, i) => ({ player: playerById.get(pid), slot: startingSlots[i] }))
+      .filter((x): x is { player: PlayerPointEntry; slot: string } => !!x.player && !optimalPlayerIds.has(x.player.player_id))
 
-    const count = Math.min(shouldHaveStarted.length, shouldHaveBeenBenched.length)
-    for (let i = 0; i < count; i++) {
-      const benched = shouldHaveStarted[i]
-      const started = shouldHaveBeenBenched[i]
+    const usedBenched = new Set<string>()
+    for (const snub of shouldHaveStarted) {
+      const snubPositions = playerById.get(snub.player_id)?.positions ?? []
+      // Among actual starters not in the optimal lineup, find ones whose
+      // slot the snubbed player was actually eligible for — a real,
+      // legal substitution — and pick the worst-scoring one (biggest snub).
+      const candidates = shouldHaveBeenBenched
+        .filter(c => !usedBenched.has(c.player.player_id) && snubPositions.some(pos => (SLOT_ELIGIBILITY[c.slot] ?? []).includes(pos)))
+        .sort((a, b) => a.player.points - b.player.points)
+
+      const worst = candidates[0]
+      if (!worst) continue
+      usedBenched.add(worst.player.player_id)
       missed_starts.push({
-        benched_player_id: benched.player_id,
-        benched_points: benched.points,
-        started_player_id: started.player_id,
-        started_points: started.points,
-        delta: benched.points - started.points,
-        slot: benched.slot,
+        benched_player_id: snub.player_id,
+        benched_points: snub.points,
+        started_player_id: worst.player.player_id,
+        started_points: worst.player.points,
+        delta: snub.points - worst.player.points,
+        slot: worst.slot,
       })
     }
     missed_starts.sort((a, b) => b.delta - a.delta)
@@ -147,10 +171,10 @@ export interface SeasonBenchTax {
 }
 
 /**
- * Compute bench tax for all rosters across all weeks.
+ * Compute bench tax (the "Hindsight Trophy" metric) for all rosters across all weeks.
  *
  * @param weeklyData  - per week: matchup data (roster_id, starters, players, players_points)
- * @param playerPositions - map of player_id -> position string (from /players/nfl cache)
+ * @param playerPositions - map of player_id -> eligible positions array (from Sleeper's fantasy_positions)
  * @param rosterPositions - league.roster_positions
  */
 export function computeSeasonBenchTax(
@@ -163,7 +187,7 @@ export function computeSeasonBenchTax(
       players_points: Record<string, number>
     }>
   }>,
-  playerPositions: Map<string, string>,
+  playerPositions: Map<string, string[]>,
   rosterPositions: string[]
 ): SeasonBenchTax[] {
   const byRoster = new Map<number, WeekBenchTax[]>()
@@ -172,7 +196,7 @@ export function computeSeasonBenchTax(
     for (const roster of rosters) {
       const allPlayers: PlayerPointEntry[] = roster.players.map(pid => ({
         player_id: pid,
-        position: playerPositions.get(pid) ?? 'UNK',
+        positions: playerPositions.get(pid) ?? [],
         points: roster.players_points[pid] ?? 0,
       }))
 

@@ -7,7 +7,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { Callout } from '@/components/Card'
 
-export const metadata = { title: 'Bench Tax' }
+export const metadata = { title: 'Hindsight Trophy' }
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 300
@@ -27,7 +27,7 @@ export default async function BenchTaxPage({
     return (
       <main className="min-h-screen px-4 py-10">
         <div className="max-w-4xl mx-auto">
-          <EmptyState icon="🌊" title="Couldn't load bench tax" subtitle={String(err)} />
+          <EmptyState icon="🌊" title="Couldn't load the Hindsight Trophy" subtitle={String(err)} />
         </div>
       </main>
     )
@@ -40,8 +40,8 @@ export default async function BenchTaxPage({
       <div className="max-w-4xl mx-auto">
         <PageHeader
           eyebrow={year ? `Sins of the bench — ${year}` : 'Sins of the bench'}
-          title="Bench Tax"
-          subtitle="Points left on the bench by starting the wrong players. Higher = worse decisions."
+          title="Hindsight Trophy"
+          subtitle="Awarded for the biggest gap between the lineup you actually started and the highest-scoring legal lineup you could have set — slot for slot, with the benefit of hindsight."
         />
 
         {/* Season worst callout */}
@@ -62,7 +62,7 @@ export default async function BenchTaxPage({
             <thead>
               <tr className="border-b border-hairline text-muted uppercase text-xs tracking-wider">
                 <th className="px-4 py-3 text-left">Manager</th>
-                <th className="px-4 py-3 text-right">Total Tax</th>
+                <th className="px-4 py-3 text-right">Total Pts</th>
                 <th className="px-4 py-3 text-right">Avg/Week</th>
                 <th className="px-4 py-3 text-right">Worst Week</th>
                 <th className="px-4 py-3 text-left hidden lg:table-cell">Worst Swap</th>
@@ -102,7 +102,7 @@ export default async function BenchTaxPage({
         </div>
 
         {leaderboard.length === 0 && (
-          <p className="text-muted text-center py-12">No bench tax data yet — check back once games have been played.</p>
+          <p className="text-muted text-center py-12">No Hindsight Trophy data yet — check back once games have been played.</p>
         )}
       </div>
     </main>

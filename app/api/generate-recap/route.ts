@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { CRON_SECRET, CURRENT_LEAGUE_ID } from '@/lib/constants'
 import { getNFLState } from '@/lib/sleeper'
 import { getSeasonSnapshot } from '@/lib/stats/season-snapshot'
-import { getPlayerNamesMap, getPlayerPositionsMap, getPlayerWeekPointsMap } from '@/lib/stats/player-data'
+import { getPlayerNamesMap, getPlayerEligiblePositionsMap, getPlayerWeekPointsMap } from '@/lib/stats/player-data'
 import { computeWeeklyAwards } from '@/lib/stats/weekly-awards'
 import { computePowerRankings } from '@/lib/stats/power'
 import { computeSeasonBenchTax } from '@/lib/stats/bench-tax'
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     const [playerNames, playerPositions, playerWeekPoints] = await Promise.all([
       getPlayerNamesMap(),
-      getPlayerPositionsMap(),
+      getPlayerEligiblePositionsMap(),
       getPlayerWeekPointsMap(season, snapshot.totalWeeks),
     ])
 

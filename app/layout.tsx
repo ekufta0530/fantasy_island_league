@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     default: 'League Roast HQ',
     template: '%s | League Roast HQ',
   },
-  description: 'The fantasy stats your league manager doesn\'t want you to see. Bench tax, draft grades, trade grades, and a weekly roast — for the Fantasy Island league.',
+  description: 'The fantasy stats your league manager doesn\'t want you to see. The Hindsight Trophy, draft grades, trade grades, and a weekly roast — for the Fantasy Island league.',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },

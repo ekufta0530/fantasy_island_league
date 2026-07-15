@@ -23,13 +23,13 @@ function BenchTaxSection({ data }: { data: BenchTaxData }) {
   const { leaderboard, best_setter, season_worst } = data
   return (
     <section className="mb-14">
-      <SectionHeading title="Bench Tax" subtitle="Points left on the bench by starting the wrong players." />
+      <SectionHeading title="Hindsight Trophy" subtitle="Points left on the bench by starting the wrong players — with the benefit of hindsight." />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {season_worst.bench_tax > 0 && (
           <Callout
             tone="rose"
             eyebrow="Captain Bench — Season's Worst Lineup"
-            title={`${leaderboard[0]?.display_name ?? 'N/A'} — Most Bench Tax`}
+            title={`${leaderboard[0]?.display_name ?? 'N/A'} — Hindsight Trophy Winner`}
             subtitle={`Week ${season_worst.week}: ${season_worst.swap_label}`}
             stat={`+${season_worst.bench_tax.toFixed(2)} pts left sitting`}
           />
@@ -39,7 +39,7 @@ function BenchTaxSection({ data }: { data: BenchTaxData }) {
           eyebrow="Best Lineup Setter"
           title={best_setter.display_name}
           subtitle={best_setter.real_name}
-          stat={`${best_setter.total_bench_tax.toFixed(2)} pts total bench tax`}
+          stat={`${best_setter.total_bench_tax.toFixed(2)} pts left on the bench all season`}
         />
       </div>
       <div className="rounded-2xl border border-hairline bg-surface overflow-hidden">
@@ -47,7 +47,7 @@ function BenchTaxSection({ data }: { data: BenchTaxData }) {
           <thead>
             <tr className="border-b border-hairline text-muted uppercase text-xs tracking-wider">
               <th className="px-4 py-3 text-left">Manager</th>
-              <th className="px-4 py-3 text-right">Total Tax</th>
+              <th className="px-4 py-3 text-right">Total Pts</th>
               <th className="px-4 py-3 text-right">Avg/Wk</th>
               <th className="px-4 py-3 text-right hidden sm:table-cell">Worst Wk</th>
             </tr>

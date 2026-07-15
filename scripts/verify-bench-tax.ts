@@ -7,23 +7,24 @@ const fail = (msg: string) => { console.error('FAIL:', msg); passed = false }
 const rosterPositions = ['QB', 'RB', 'WR', 'FLEX', 'BN', 'BN']
 const starters = ['QB1', 'RB1', 'WR1', 'RB2']  // RB2 in FLEX (wrong choice)
 const allPlayers = [
-  { player_id: 'QB1',  position: 'QB', points: 20 },
-  { player_id: 'RB1',  position: 'RB', points: 18 },
-  { player_id: 'WR1',  position: 'WR', points: 15 },
-  { player_id: 'WR2',  position: 'WR', points: 22 },  // benched! should be in FLEX
-  { player_id: 'RB2',  position: 'RB', points: 5  },
-  { player_id: 'BN',   position: 'RB', points: 3  },
+  { player_id: 'QB1',  positions: ['QB'], points: 20 },
+  { player_id: 'RB1',  positions: ['RB'], points: 18 },
+  { player_id: 'WR1',  positions: ['WR'], points: 15 },
+  { player_id: 'WR2',  positions: ['WR'], points: 22 },  // benched! should be starting somewhere
+  { player_id: 'RB2',  positions: ['RB'], points: 5  },
+  { player_id: 'BN',   positions: ['RB'], points: 3  },
 ]
 
 const result = computeOptimalLineup(rosterPositions, starters, allPlayers)
 
-// Optimal: QB1(20) + RB1(18) + WR1(15) + WR2(22 in FLEX) = 75
+// Optimal: the two best WR-eligible players (WR2=22, WR1=15) fill the WR
+// and FLEX slots between them, plus QB1(20) + RB1(18) = 75
 if (result.optimal_points !== 75) fail(`optimal should be 75, got ${result.optimal_points}`)
 // Actual: QB1(20) + RB1(18) + WR1(15) + RB2(5) = 58
 if (result.actual_points !== 58) fail(`actual should be 58, got ${result.actual_points}`)
 // bench_tax = 17
 if (result.bench_tax !== 17) fail(`bench_tax should be 17, got ${result.bench_tax}`)
-// Should have a missed start: WR2 benched for RB2 in FLEX
+// Should have a missed start: WR2 benched, could legally have filled RB2's FLEX slot
 if (result.missed_starts.length === 0) fail('should have at least 1 missed start')
 else {
   const top = result.missed_starts[0]
@@ -32,14 +33,14 @@ else {
 }
 
 // --- Test 2: no bench tax (perfect lineup) ---
-const perfectStarters = ['QB1', 'RB1', 'WR1', 'WR2']  // optimal picks
+const perfectStarters = ['QB1', 'RB1', 'WR1', 'WR2']  // optimal picks (order doesn't matter for totals)
 const perfect = computeOptimalLineup(rosterPositions, perfectStarters, allPlayers)
 if (perfect.bench_tax !== 0) fail(`perfect lineup should have 0 bench_tax, got ${perfect.bench_tax}`)
 if (perfect.missed_starts.length !== 0) fail(`perfect lineup should have 0 missed starts, got ${perfect.missed_starts.length}`)
 
 // --- Test 3: computeSeasonBenchTax aggregation ---
 const playerPositions = new Map([
-  ['QB1', 'QB'], ['RB1', 'RB'], ['WR1', 'WR'], ['WR2', 'WR'], ['RB2', 'RB'], ['BN', 'RB']
+  ['QB1', ['QB']], ['RB1', ['RB']], ['WR1', ['WR']], ['WR2', ['WR']], ['RB2', ['RB']], ['BN', ['RB']]
 ])
 const weeklyData = [{
   week: 1,
@@ -55,12 +56,29 @@ if (season.length !== 1) fail(`season should have 1 roster, got ${season.length}
 if (season[0].total_bench_tax !== 17) fail(`season total_bench_tax should be 17, got ${season[0].total_bench_tax}`)
 if (season[0].worst_week.week !== 1) fail(`worst week should be week 1`)
 
+// --- Test 4: IDP_FLEX slot + multi-position eligibility ---
+const idpRosterPositions = ['QB', 'FLEX', 'IDP_FLEX', 'BN']
+const idpStarters = ['QB1', 'RB1', 'LB1']
+const idpPlayers = [
+  { player_id: 'QB1', positions: ['QB'], points: 20 },
+  { player_id: 'RB1', positions: ['RB'], points: 10 },
+  { player_id: 'LB1', positions: ['LB'], points: 8 },
+  { player_id: 'DB1', positions: ['DB'], points: 15 },  // benched — should've filled IDP_FLEX
+]
+const idpResult = computeOptimalLineup(idpRosterPositions, idpStarters, idpPlayers)
+// Optimal: QB1(20) + RB1(10) in FLEX + DB1(15) in IDP_FLEX = 45
+if (idpResult.optimal_points !== 45) fail(`IDP optimal should be 45, got ${idpResult.optimal_points}`)
+if (idpResult.actual_points !== 38) fail(`IDP actual should be 38, got ${idpResult.actual_points}`)
+if (idpResult.bench_tax !== 7) fail(`IDP bench_tax should be 7, got ${idpResult.bench_tax}`)
+if (idpResult.missed_starts[0]?.benched_player_id !== 'DB1') fail(`IDP missed start should flag DB1, got ${idpResult.missed_starts[0]?.benched_player_id}`)
+
 if (passed) {
   console.log('PASS: bench tax engine correct')
   console.log('  optimal_points:', result.optimal_points)
   console.log('  actual_points:', result.actual_points)
   console.log('  bench_tax:', result.bench_tax)
   console.log('  top missed start:', result.missed_starts[0])
+  console.log('  IDP_FLEX bench_tax:', idpResult.bench_tax)
 } else {
   process.exit(1)
 }
