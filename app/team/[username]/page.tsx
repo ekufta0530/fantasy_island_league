@@ -6,18 +6,20 @@ import { getBenchTaxData } from '@/lib/stats/bench-tax-data'
 import { getDraftGradeData } from '@/lib/stats/draft-grade-data'
 import { getTradePageData } from '@/lib/stats/trade-grade-data'
 import { getWaiverRoiData } from '@/lib/stats/waiver-roi-data'
-import { MANAGERS, getManagerByUsername } from '@/lib/managers'
+import { getManagerByUsername } from '@/lib/managers'
 import { Avatar } from '@/components/Avatar'
 import { SectionHeading } from '@/components/PageHeader'
 import { StatTile } from '@/components/StatTile'
 import { Badge } from '@/components/Badge'
 import { EmptyState } from '@/components/EmptyState'
 
-export const revalidate = 300
-
-export function generateStaticParams() {
-  return MANAGERS.map(m => ({ username: m.username }))
-}
+// Every other data page in this app fetches fresh per-request (dynamic) —
+// this one used to be statically prerendered at build time via
+// generateStaticParams, which meant a single transient Sleeper API failure
+// during `next build` got baked into the static HTML and stuck there until
+// the next deploy, regardless of the revalidate window. Matching the rest
+// of the app avoids that whole class of stuck-stale-build bug.
+export const dynamic = 'force-dynamic'
 
 export default async function TeamPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params
