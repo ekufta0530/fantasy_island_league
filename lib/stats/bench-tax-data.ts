@@ -62,15 +62,17 @@ function buildSwapLabel(
   return `Started ${started} (${top.started_points.toFixed(1)}pts) over ${benched} (${top.benched_points.toFixed(1)}pts)`
 }
 
-export async function getBenchTaxData(): Promise<BenchTaxData> {
+export async function getBenchTaxData(leagueId: string = CURRENT_LEAGUE_ID): Promise<BenchTaxData> {
   const [nflState, league, users, rosters] = await Promise.all([
     getNFLState(),
-    getLeague(CURRENT_LEAGUE_ID),
-    getLeagueUsers(CURRENT_LEAGUE_ID),
-    getRosters(CURRENT_LEAGUE_ID),
+    getLeague(leagueId),
+    getLeagueUsers(leagueId),
+    getRosters(leagueId),
   ])
 
-  const currentWeek = Math.min(nflState.week, (league.settings.playoff_week_start ?? 15) - 1)
+  const currentWeek = leagueId === CURRENT_LEAGUE_ID
+    ? Math.min(nflState.week, (league.settings.playoff_week_start ?? 15) - 1)
+    : (league.settings.playoff_week_start ?? 15) - 1
   const rosterPositions: string[] = league.roster_positions ?? ['QB','RB','RB','WR','WR','TE','FLEX','BN','BN','BN','BN','BN']
 
   // Build rosterMap
@@ -92,7 +94,7 @@ export async function getBenchTaxData(): Promise<BenchTaxData> {
   const weeklyData: Array<{ week: number; rosters: Array<{ roster_id: number; starters: string[]; players: string[]; players_points: Record<string, number> }> }> = []
   for (let w = 1; w <= currentWeek; w++) {
     try {
-      const matchups = await getMatchups(CURRENT_LEAGUE_ID, w)
+      const matchups = await getMatchups(leagueId, w)
       if (matchups.length === 0) break
       weeklyData.push({
         week: w,

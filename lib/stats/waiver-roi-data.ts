@@ -50,13 +50,15 @@ async function getPlayerNamesMap(): Promise<Map<string, string>> {
   return new Map()
 }
 
-export async function getWaiverRoiData(): Promise<WaiverRoiPageData> {
+export async function getWaiverRoiData(leagueId: string = CURRENT_LEAGUE_ID): Promise<WaiverRoiPageData> {
   const [nflState, league, users, rosters] = await Promise.all([
-    getNFLState(), getLeague(CURRENT_LEAGUE_ID), getLeagueUsers(CURRENT_LEAGUE_ID), getRosters(CURRENT_LEAGUE_ID)
+    getNFLState(), getLeague(leagueId), getLeagueUsers(leagueId), getRosters(leagueId)
   ])
-  const currentWeek = nflState.week
   const season = league.season
   const totalWeeks = league.settings.playoff_week_start ? league.settings.playoff_week_start - 1 : 17
+  // For the live current season, don't walk past real-world "now". For a
+  // past/completed season, nflState.week is irrelevant — walk the whole thing.
+  const currentWeek = leagueId === CURRENT_LEAGUE_ID ? nflState.week : totalWeeks
   const isFAAB = (league.settings.waiver_type ?? 0) === 2
 
   const rosterNames = new Map<number, { display_name: string; real_name: string; avatar_url: string | null }>()
@@ -83,7 +85,7 @@ export async function getWaiverRoiData(): Promise<WaiverRoiPageData> {
   }> = []
   for (let w = 1; w <= currentWeek; w++) {
     try {
-      const txns = await getTransactions(CURRENT_LEAGUE_ID, w)
+      const txns = await getTransactions(leagueId, w)
       allTxns.push(...txns.map(t => ({
         transaction_id: t.transaction_id,
         week: w,

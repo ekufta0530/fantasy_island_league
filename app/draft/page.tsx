@@ -1,6 +1,7 @@
 // app/draft/page.tsx
 import { getDraftGradeData } from '@/lib/stats/draft-grade-data'
 import type { GradedPick } from '@/lib/stats/draft-grade'
+import { resolveSeason } from '@/lib/season'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Callout } from '@/components/Card'
@@ -39,10 +40,17 @@ function PickCell({ pick }: { pick: GradedPick | undefined }) {
   )
 }
 
-export default async function DraftPage() {
+export default async function DraftPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: seasonParam } = await searchParams
+  const { leagueId, year } = await resolveSeason(seasonParam)
+
   let data
   try {
-    data = await getDraftGradeData()
+    data = await getDraftGradeData(leagueId)
   } catch (err) {
     return (
       <main className="min-h-screen px-4 py-10">
@@ -79,7 +87,7 @@ export default async function DraftPage() {
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-7xl mx-auto">
         <PageHeader
-          eyebrow="Receipts, kept forever"
+          eyebrow={year ? `Receipts, kept forever — ${year}` : 'Receipts, kept forever'}
           title="Draft Recap"
           subtitle="How did everyone's picks actually pan out? Value over pick = (draft slot) − (actual finish rank by season points)."
         />

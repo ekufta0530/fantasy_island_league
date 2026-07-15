@@ -53,17 +53,19 @@ async function buildPlayerRosPoints(season: string, maxWeek: number): Promise<Ma
   return result
 }
 
-export async function getTradePageData(): Promise<TradePageData> {
+export async function getTradePageData(leagueId: string = CURRENT_LEAGUE_ID): Promise<TradePageData> {
   const [nflState, league, users, rosters] = await Promise.all([
     getNFLState(),
-    getLeague(CURRENT_LEAGUE_ID),
-    getLeagueUsers(CURRENT_LEAGUE_ID),
-    getRosters(CURRENT_LEAGUE_ID),
+    getLeague(leagueId),
+    getLeagueUsers(leagueId),
+    getRosters(leagueId),
   ])
 
-  const currentWeek = nflState.week
   const season = league.season
   const totalWeeks = league.settings.playoff_week_start ? league.settings.playoff_week_start - 1 : 17
+  // For the live current season, don't walk past real-world "now". For a
+  // past/completed season, nflState.week is irrelevant — walk the whole thing.
+  const currentWeek = leagueId === CURRENT_LEAGUE_ID ? nflState.week : totalWeeks
 
   // Build rosterNames map
   const rosterNames = new Map<number, { display_name: string; real_name: string; avatar_url: string | null }>()
@@ -84,7 +86,7 @@ export async function getTradePageData(): Promise<TradePageData> {
   const trades: Array<{ transaction_id: string; week: number; adds: Record<string, number> | null; drops: Record<string, number> | null; roster_ids: number[] }> = []
   for (let w = 1; w <= currentWeek; w++) {
     try {
-      const txns = await getTransactions(CURRENT_LEAGUE_ID, w)
+      const txns = await getTransactions(leagueId, w)
       for (const t of txns) {
         if (t.type === 'trade' && t.status === 'complete') {
           trades.push({

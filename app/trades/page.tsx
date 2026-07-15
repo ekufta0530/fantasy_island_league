@@ -1,5 +1,6 @@
 // app/trades/page.tsx
 import { getTradePageData } from '@/lib/stats/trade-grade-data'
+import { resolveSeason } from '@/lib/season'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Callout } from '@/components/Card'
@@ -20,10 +21,17 @@ function DeltaBadge({ delta }: { delta: number }) {
   )
 }
 
-export default async function TradesPage() {
+export default async function TradesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: seasonParam } = await searchParams
+  const { leagueId, year } = await resolveSeason(seasonParam)
+
   let data
   try {
-    data = await getTradePageData()
+    data = await getTradePageData(leagueId)
   } catch (err) {
     return (
       <main className="min-h-screen px-4 py-10">
@@ -47,7 +55,7 @@ export default async function TradesPage() {
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
         <PageHeader
-          eyebrow="Who got got"
+          eyebrow={year ? `Who got got — ${year}` : 'Who got got'}
           title="Trades"
           subtitle="Graded by rest-of-season fantasy points each side received. Positive = won the trade."
         />

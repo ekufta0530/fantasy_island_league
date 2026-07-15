@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fredoka, Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
+import { getSeasonOptions } from "@/lib/season";
 import "./globals.css";
 
 const bodySans = Geist({
@@ -38,18 +39,20 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const seasons = await getSeasonOptions();
+
   return (
     <html
       lang="en"
       className={`${bodySans.variable} ${displaySans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Nav />
+        <Nav seasons={seasons} />
         {children}
       </body>
     </html>

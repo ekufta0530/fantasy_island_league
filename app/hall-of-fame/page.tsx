@@ -2,6 +2,7 @@
 export const metadata = { title: 'Hall of Fame' }
 
 import { getHallOfFameData } from '@/lib/stats/hall-of-fame-data'
+import { resolveSeason } from '@/lib/season'
 import { BenchTaxData } from '@/lib/stats/bench-tax-data'
 import { DraftGradePageData } from '@/lib/stats/draft-grade-data'
 import { TradePageData } from '@/lib/stats/trade-grade-data'
@@ -491,8 +492,14 @@ function AwardCountSection({
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
-export default async function HallOfFamePage() {
-  const data = await getHallOfFameData()
+export default async function HallOfFamePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: seasonParam } = await searchParams
+  const { leagueId, year } = await resolveSeason(seasonParam)
+  const data = await getHallOfFameData(leagueId)
 
   const anyData = data.benchTax || data.draftGrade || data.tradeGrade || data.waiverRoi || data.standings
 
@@ -500,7 +507,7 @@ export default async function HallOfFamePage() {
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
         <PageHeader
-          eyebrow="Fame & shame, quantified"
+          eyebrow={year ? `Fame & shame, quantified — ${year}` : 'Fame & shame, quantified'}
           title="Hall of Fame"
           subtitle="Season leaderboards across every category — from bench blunders to waiver wizardry."
         />

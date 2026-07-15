@@ -4,6 +4,7 @@ import { getDraftGradeData, DraftGradePageData } from './draft-grade-data'
 import { getTradePageData, TradePageData } from './trade-grade-data'
 import { getWaiverRoiData, WaiverRoiPageData } from './waiver-roi-data'
 import { getStandingsData, StandingsRow } from './standings'
+import { CURRENT_LEAGUE_ID } from '../constants'
 
 export interface HallOfFameData {
   benchTax: BenchTaxData | null
@@ -13,13 +14,13 @@ export interface HallOfFameData {
   standings: StandingsRow[] | null
 }
 
-export async function getHallOfFameData(): Promise<HallOfFameData> {
+export async function getHallOfFameData(leagueId: string = CURRENT_LEAGUE_ID): Promise<HallOfFameData> {
   const [benchTax, draftGrade, tradeGrade, waiverRoi, standings] = await Promise.allSettled([
-    getBenchTaxData(),
-    getDraftGradeData(),
-    getTradePageData(),
-    getWaiverRoiData(),
-    getStandingsData(),
+    getBenchTaxData(leagueId),
+    getDraftGradeData(leagueId),
+    getTradePageData(leagueId),
+    getWaiverRoiData(leagueId),
+    getStandingsData(leagueId),
   ])
 
   return {

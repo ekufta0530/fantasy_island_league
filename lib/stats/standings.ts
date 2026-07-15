@@ -22,21 +22,25 @@ export interface StandingsRow {
   all_play_losses: number
 }
 
-export async function getStandingsData(): Promise<StandingsRow[]> {
+export async function getStandingsData(leagueId: string = CURRENT_LEAGUE_ID): Promise<StandingsRow[]> {
   const [nflState, league, rosters, users] = await Promise.all([
     getNFLState(),
-    getLeague(CURRENT_LEAGUE_ID),
-    getRosters(CURRENT_LEAGUE_ID),
-    getLeagueUsers(CURRENT_LEAGUE_ID),
+    getLeague(leagueId),
+    getRosters(leagueId),
+    getLeagueUsers(leagueId),
   ])
 
-  const currentWeek = Math.min(nflState.week, league.settings.playoff_week_start - 1)
+  // For the live current season, don't walk past real-world "now". For a
+  // past/completed season, nflState.week is irrelevant — walk the whole thing.
+  const currentWeek = leagueId === CURRENT_LEAGUE_ID
+    ? Math.min(nflState.week, league.settings.playoff_week_start - 1)
+    : league.settings.playoff_week_start - 1
 
   // Fetch all completed weeks' matchups
   const weeklyMatchups: WeekMatchups[] = []
   for (let w = 1; w <= currentWeek; w++) {
     try {
-      const matchups = await getMatchups(CURRENT_LEAGUE_ID, w)
+      const matchups = await getMatchups(leagueId, w)
       if (matchups.length > 0) {
         weeklyMatchups.push({ week: w, matchups })
       }

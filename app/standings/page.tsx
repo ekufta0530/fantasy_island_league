@@ -1,4 +1,5 @@
 import { getStandingsData } from '@/lib/stats/standings'
+import { resolveSeason } from '@/lib/season'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
@@ -30,10 +31,18 @@ function powerRankBadge(rank: number): string {
   return `#${rank}`
 }
 
-export default async function StandingsPage() {
+export default async function StandingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: seasonParam } = await searchParams
+  const { leagueId, year } = await resolveSeason(seasonParam)
+  const eyebrow = year ? `The pecking order — ${year}` : 'The pecking order'
+
   let rows
   try {
-    rows = await getStandingsData()
+    rows = await getStandingsData(leagueId)
   } catch (err) {
     return (
       <main className="min-h-screen px-4 py-10">
@@ -49,7 +58,7 @@ export default async function StandingsPage() {
       <main className="min-h-screen px-4 py-10">
         <div className="max-w-5xl mx-auto">
           <PageHeader
-            eyebrow="The pecking order"
+            eyebrow={eyebrow}
             title="Standings"
             subtitle="Power rank = 50% record + 30% total PF + 20% last-3-week PF. Luck index = actual wins minus expected wins if you'd played everyone every week."
           />
@@ -67,7 +76,7 @@ export default async function StandingsPage() {
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-5xl mx-auto">
         <PageHeader
-          eyebrow="The pecking order"
+          eyebrow={eyebrow}
           title="Standings"
           subtitle="Power rank = 50% record + 30% total PF + 20% last-3-week PF. Luck index = actual wins minus expected wins if you'd played everyone every week."
         />

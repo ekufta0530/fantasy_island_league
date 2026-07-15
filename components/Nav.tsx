@@ -1,7 +1,9 @@
 'use client'
 
+import { Suspense } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
+import type { SeasonMode, SeasonOption } from '@/lib/season'
 
 const LINKS = [
   { href: '/standings', label: 'Standings' },
@@ -18,7 +20,46 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function Nav() {
+function SeasonToggleInner({ seasons }: { seasons: SeasonOption[] }) {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const activeMode: SeasonMode = searchParams.get('season') === 'previous' ? 'previous' : 'current'
+
+  function hrefFor(mode: SeasonMode): string {
+    const params = new URLSearchParams(searchParams.toString())
+    if (mode === 'current') params.delete('season')
+    else params.set('season', mode)
+    const qs = params.toString()
+    return qs ? `${pathname}?${qs}` : pathname
+  }
+
+  return (
+    <div className="flex items-center gap-0.5 bg-surface-2 rounded-full p-0.5 text-xs font-semibold shrink-0">
+      {seasons.map(opt => (
+        <Link
+          key={opt.mode}
+          href={hrefFor(opt.mode)}
+          className={`px-2.5 py-1 rounded-full transition-colors whitespace-nowrap ${
+            activeMode === opt.mode ? 'bg-coral-900/60 text-coral-300' : 'text-muted hover:text-ink'
+          }`}
+        >
+          {opt.year || (opt.mode === 'current' ? 'Current' : 'Previous')}
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function SeasonToggle({ seasons }: { seasons: SeasonOption[] }) {
+  if (seasons.length < 2) return null
+  return (
+    <Suspense fallback={null}>
+      <SeasonToggleInner seasons={seasons} />
+    </Suspense>
+  )
+}
+
+export function Nav({ seasons }: { seasons: SeasonOption[] }) {
   const pathname = usePathname()
 
   return (
@@ -46,6 +87,9 @@ export function Nav() {
             </Link>
           ))}
         </div>
+        <div className="ml-auto pl-4">
+          <SeasonToggle seasons={seasons} />
+        </div>
       </div>
 
       {/* Mobile */}
@@ -66,6 +110,9 @@ export function Nav() {
             {link.label}
           </Link>
         ))}
+        <div className="pl-1">
+          <SeasonToggle seasons={seasons} />
+        </div>
       </div>
     </nav>
   )

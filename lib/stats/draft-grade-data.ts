@@ -60,11 +60,11 @@ async function getSeasonPointsMap(season: string, maxWeek: number): Promise<Map<
   return points
 }
 
-export async function getDraftGradeData(): Promise<DraftGradePageData> {
+export async function getDraftGradeData(leagueId: string = CURRENT_LEAGUE_ID): Promise<DraftGradePageData> {
   const [league, users, rosters] = await Promise.all([
-    getLeague(CURRENT_LEAGUE_ID),
-    getLeagueUsers(CURRENT_LEAGUE_ID),
-    getRosters(CURRENT_LEAGUE_ID),
+    getLeague(leagueId),
+    getLeagueUsers(leagueId),
+    getRosters(leagueId),
   ])
 
   const season = league.season
@@ -86,7 +86,7 @@ export async function getDraftGradeData(): Promise<DraftGradePageData> {
   }
 
   // Get draft picks
-  const drafts = await getLeagueDrafts(CURRENT_LEAGUE_ID)
+  const drafts = await getLeagueDrafts(leagueId)
   if (drafts.length === 0) throw new Error('No draft found for this league')
   const draft = drafts[0]  // use the first (main) draft
   const rawPicks = await getDraftPicks(draft.draft_id)

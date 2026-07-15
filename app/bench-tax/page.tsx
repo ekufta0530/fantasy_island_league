@@ -1,5 +1,6 @@
 // app/bench-tax/page.tsx
 import { getBenchTaxData } from '@/lib/stats/bench-tax-data'
+import { resolveSeason } from '@/lib/season'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
@@ -11,10 +12,17 @@ export const metadata = { title: 'Bench Tax' }
 export const dynamic = 'force-dynamic'
 export const revalidate = 300
 
-export default async function BenchTaxPage() {
+export default async function BenchTaxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ season?: string }>
+}) {
+  const { season: seasonParam } = await searchParams
+  const { leagueId, year } = await resolveSeason(seasonParam)
+
   let data
   try {
-    data = await getBenchTaxData()
+    data = await getBenchTaxData(leagueId)
   } catch (err) {
     return (
       <main className="min-h-screen px-4 py-10">
@@ -31,7 +39,7 @@ export default async function BenchTaxPage() {
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
         <PageHeader
-          eyebrow="Sins of the bench"
+          eyebrow={year ? `Sins of the bench — ${year}` : 'Sins of the bench'}
           title="Bench Tax"
           subtitle="Points left on the bench by starting the wrong players. Higher = worse decisions."
         />
