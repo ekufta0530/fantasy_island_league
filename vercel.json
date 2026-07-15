@@ -9,10 +9,6 @@
       "schedule": "0 14 * * 2"
     },
     {
-      "path": "/api/refresh",
-      "schedule": "0 */6 * * *"
-    },
-    {
       "path": "/api/generate-recap",
       "schedule": "0 16 * * 2"
     }
