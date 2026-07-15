@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       if (!user) continue
       const manager = getManagerByUsername(user.username)
       const teamName = user.metadata?.team_name || manager?.teamName || null
-      rosterIdToName.set(roster.roster_id, teamName ?? user.username)
+      rosterIdToName.set(roster.roster_id, teamName ?? user.display_name)
     }
 
     // Fetch this week's and last week's matchups

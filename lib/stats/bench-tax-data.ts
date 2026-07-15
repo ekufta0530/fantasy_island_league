@@ -82,8 +82,8 @@ export async function getBenchTaxData(): Promise<BenchTaxData> {
     const manager = getManagerByUsername(user.username)
     const teamName = user.metadata?.team_name || manager?.teamName || null
     rosterMap.set(roster.roster_id, {
-      display_name: teamName ?? user.username,
-      real_name: manager?.realName ?? user.username,
+      display_name: teamName ?? user.display_name,
+      real_name: manager?.realName ?? user.display_name,
       avatar_url: user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
     })
   }

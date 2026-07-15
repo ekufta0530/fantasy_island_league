@@ -51,7 +51,7 @@ export async function getStandingsData(): Promise<StandingsRow[]> {
 
   // Build roster_id → username map
   const rosterToUser = new Map<number, {
-    username: string
+    username: string | null
     display_name: string
     avatar: string | null
     team_name: string | null

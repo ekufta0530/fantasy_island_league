@@ -61,16 +61,19 @@ export async function getRivalriesData(): Promise<RivalriesData> {
       if (!roster.owner_id) continue
       const user = users.find(u => u.user_id === roster.owner_id)
       if (!user) continue
+      // Sleeper returns username: null for co-owner accounts that never set one —
+      // fall back to a stable per-user identity key so history still joins correctly.
+      const identity = user.username ?? `uid_${user.user_id}`
       const mgr = getManagerByUsername(user.username)
       const teamName = user.metadata?.team_name || mgr?.teamName || null
-      rosterToUsername.set(roster.roster_id, user.username)
-      rosterToDisplay.set(roster.roster_id, teamName ?? user.username)
+      rosterToUsername.set(roster.roster_id, identity)
+      rosterToDisplay.set(roster.roster_id, teamName ?? user.display_name)
       rosterToAvatar.set(roster.roster_id, user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null)
 
       // Seed display info (overwrite with latest season data)
-      displayInfo.set(user.username, {
-        display_name: teamName ?? user.username,
-        real_name: mgr?.realName ?? user.username,
+      displayInfo.set(identity, {
+        display_name: teamName ?? user.display_name,
+        real_name: mgr?.realName ?? user.display_name,
         avatar_url: user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
       })
     }

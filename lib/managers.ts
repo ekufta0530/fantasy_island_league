@@ -83,8 +83,13 @@ export const MANAGERS: ManagerConfig[] = [
   },
 ]
 
-/** Look up a manager by their Sleeper username. Returns undefined if not found. */
-export function getManagerByUsername(username: string): ManagerConfig | undefined {
+/**
+ * Look up a manager by their Sleeper username. Returns undefined if not found.
+ * Sleeper returns `username: null` for co-owner accounts that never set one —
+ * treat that as "no match" rather than throwing.
+ */
+export function getManagerByUsername(username: string | null | undefined): ManagerConfig | undefined {
+  if (!username) return undefined
   return MANAGERS.find(
     (m) => m.username.toLowerCase() === username.toLowerCase()
   )

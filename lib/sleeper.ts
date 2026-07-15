@@ -46,7 +46,8 @@ export interface SleeperRoster {
 
 export interface SleeperUser {
   user_id: string
-  username: string
+  // Sleeper returns null for co-owner accounts that never set a username
+  username: string | null
   display_name: string
   avatar: string | null
   metadata: {

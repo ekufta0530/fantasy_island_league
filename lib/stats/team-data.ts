@@ -75,7 +75,7 @@ export async function getTeamData(username: string): Promise<TeamPageData | null
   ])
 
   // Find this user's Sleeper user + roster
-  const sleeperUser = users.find(u => u.username.toLowerCase() === username.toLowerCase())
+  const sleeperUser = users.find(u => u.username?.toLowerCase() === username.toLowerCase())
   const thisRoster = rosters.find(r => r.owner_id === sleeperUser?.user_id)
   const roster_id = thisRoster?.roster_id ?? null
 
@@ -90,9 +90,11 @@ export async function getTeamData(username: string): Promise<TeamPageData | null
     if (!roster.owner_id) continue
     const u = users.find(u => u.user_id === roster.owner_id)
     if (!u) continue
+    // Sleeper returns username: null for co-owner accounts that never set one
+    const identity = u.username ?? `uid_${u.user_id}`
     const mgr = getManagerByUsername(u.username)
-    const dn = u.metadata?.team_name || mgr?.teamName || u.username
-    rosterToUsername.set(roster.roster_id, u.username)
+    const dn = u.metadata?.team_name || mgr?.teamName || u.display_name
+    rosterToUsername.set(roster.roster_id, identity)
     rosterToDisplay.set(roster.roster_id, dn)
   }
 
