@@ -1,6 +1,6 @@
 // lib/stats/team-data.ts
-import { getLeague, getLeagueUsers, getRosters, getMatchups, getNFLState } from '../sleeper'
-import { getManagerByUsername, MANAGERS } from '../managers'
+import { getSeasonSnapshot } from './season-snapshot'
+import { getManagerByUsername } from '../managers'
 import { CURRENT_LEAGUE_ID } from '../constants'
 import { supabaseAdmin } from '../db/supabase'
 
@@ -67,52 +67,27 @@ export async function getTeamData(username: string): Promise<TeamPageData | null
   const manager = getManagerByUsername(username)
   if (!manager) return null
 
-  const [nflState, league, users, rosters] = await Promise.all([
-    getNFLState(),
-    getLeague(CURRENT_LEAGUE_ID),
-    getLeagueUsers(CURRENT_LEAGUE_ID),
-    getRosters(CURRENT_LEAGUE_ID),
-  ])
+  const snapshot = await getSeasonSnapshot(CURRENT_LEAGUE_ID)
 
-  // Find this user's Sleeper user + roster
-  const sleeperUser = users.find(u => u.username?.toLowerCase() === username.toLowerCase())
-  const thisRoster = rosters.find(r => r.owner_id === sleeperUser?.user_id)
+  // Find this user's Sleeper user + roster. Sleeper's league-users endpoint
+  // no longer returns `username` (always null) — fall back to display_name,
+  // which reliably matches the usernames configured in lib/managers.ts.
+  const sleeperUser = snapshot.users.find(u =>
+    u.username?.toLowerCase() === username.toLowerCase() ||
+    u.display_name?.toLowerCase() === username.toLowerCase()
+  )
+  const thisRoster = snapshot.rosters.find(r => r.owner_id === sleeperUser?.user_id)
   const roster_id = thisRoster?.roster_id ?? null
 
   const teamName = sleeperUser?.metadata?.team_name || manager.teamName || null
   const display_name = teamName ?? username
   const avatar_url = sleeperUser?.avatar ? `https://sleepercdn.com/avatars/thumbs/${sleeperUser.avatar}` : null
 
-  // Build roster_id ↔ username map for all managers
-  const rosterToUsername = new Map<number, string>()
-  const rosterToDisplay = new Map<number, string>()
-  for (const roster of rosters) {
-    if (!roster.owner_id) continue
-    const u = users.find(u => u.user_id === roster.owner_id)
-    if (!u) continue
-    // Sleeper returns username: null for co-owner accounts that never set one
-    const identity = u.username ?? `uid_${u.user_id}`
-    const mgr = getManagerByUsername(u.username)
-    const dn = u.metadata?.team_name || mgr?.teamName || u.display_name
-    rosterToUsername.set(roster.roster_id, identity)
-    rosterToDisplay.set(roster.roster_id, dn)
-  }
-
-  // Fetch all completed weeks
-  const currentWeek = Math.min(nflState.week, (league.settings.playoff_week_start ?? 15) - 1)
-  const allWeekMatchups: Array<{ week: number; matchups: Awaited<ReturnType<typeof getMatchups>> }> = []
-  for (let w = 1; w <= currentWeek; w++) {
-    try {
-      const m = await getMatchups(CURRENT_LEAGUE_ID, w)
-      if (m.length) allWeekMatchups.push({ week: w, matchups: m })
-    } catch { break }
-  }
-
   // W/L/T and PF/PA from matchup history
   let wins = 0, losses = 0, ties = 0, points_for = 0, points_against = 0
   const h2hMap = new Map<number, H2HRecord>()  // opponent_roster_id → record
 
-  for (const { matchups } of allWeekMatchups) {
+  for (const { matchups } of snapshot.weeklyMatchups) {
     const mine = matchups.find(m => m.roster_id === roster_id)
     if (!mine) continue
     const opp = matchups.find(m => m.matchup_id === mine.matchup_id && m.roster_id !== roster_id)
@@ -126,9 +101,10 @@ export async function getTeamData(username: string): Promise<TeamPageData | null
     else if (opp.points > mine.points) { losses++; l = 1 }
     else { ties++; t = 1 }
 
+    const oppInfo = snapshot.rosterInfo.get(opp.roster_id)
     const existing = h2hMap.get(opp.roster_id) ?? {
-      opponent_username: rosterToUsername.get(opp.roster_id) ?? `roster_${opp.roster_id}`,
-      opponent_display_name: rosterToDisplay.get(opp.roster_id) ?? `Team ${opp.roster_id}`,
+      opponent_username: oppInfo?.username ?? `roster_${opp.roster_id}`,
+      opponent_display_name: oppInfo?.display_name ?? `Team ${opp.roster_id}`,
       wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0,
     }
     existing.wins += w

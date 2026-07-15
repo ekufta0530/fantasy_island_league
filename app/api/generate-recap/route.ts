@@ -1,10 +1,15 @@
 // app/api/generate-recap/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { CRON_SECRET, CURRENT_LEAGUE_ID } from '@/lib/constants'
-import { getNFLState, getLeague, getMatchups, getLeagueUsers, getRosters, getTransactions } from '@/lib/sleeper'
-import { getManagerByUsername } from '@/lib/managers'
+import { getNFLState } from '@/lib/sleeper'
+import { getSeasonSnapshot } from '@/lib/stats/season-snapshot'
+import { getPlayerNamesMap, getPlayerPositionsMap, getPlayerWeekPointsMap } from '@/lib/stats/player-data'
 import { computeWeeklyAwards } from '@/lib/stats/weekly-awards'
 import { computePowerRankings } from '@/lib/stats/power'
+import { computeSeasonBenchTax } from '@/lib/stats/bench-tax'
+import { buildSwapLabel } from '@/lib/stats/bench-tax-data'
+import { computeTradeGrades } from '@/lib/stats/trade-grade'
+import { computeWaiverRoi } from '@/lib/stats/waiver-roi'
 import { assembleWeekBrief } from '@/lib/recap/week-brief'
 import { generateAndStoreRecap, recapExists } from '@/lib/recap/generate'
 
@@ -31,59 +36,80 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, message: `Recap for Week ${recapWeek} already exists`, stored: false })
     }
 
-    const [league, users, rosters] = await Promise.all([
-      getLeague(CURRENT_LEAGUE_ID),
-      getLeagueUsers(CURRENT_LEAGUE_ID),
-      getRosters(CURRENT_LEAGUE_ID),
-    ])
+    const snapshot = await getSeasonSnapshot(CURRENT_LEAGUE_ID)
+    const rosterIdToName = new Map(
+      [...snapshot.rosterInfo.entries()].map(([id, info]) => [id, info.display_name])
+    )
 
-    // Build rosterIdToName
-    const rosterIdToName = new Map<number, string>()
-    for (const roster of rosters) {
-      if (!roster.owner_id) continue
-      const user = users.find(u => u.user_id === roster.owner_id)
-      if (!user) continue
-      const manager = getManagerByUsername(user.username)
-      const teamName = user.metadata?.team_name || manager?.teamName || null
-      rosterIdToName.set(roster.roster_id, teamName ?? user.display_name)
-    }
+    const thisWeekMatchups = snapshot.weeklyMatchups.find(w => w.week === recapWeek)?.matchups ?? []
+    const weeksThruRecap = snapshot.weeklyMatchups.filter(w => w.week <= recapWeek)
 
-    // Fetch this week's and last week's matchups
-    const [thisWeekMatchups, lastWeekMatchups] = await Promise.all([
-      getMatchups(CURRENT_LEAGUE_ID, recapWeek),
-      recapWeek > 1 ? getMatchups(CURRENT_LEAGUE_ID, recapWeek - 1) : Promise.resolve([]),
-    ])
-
-    // Fetch all weeks for standings/power rankings
-    const allWeeks = []
-    for (let w = 1; w <= recapWeek; w++) {
-      try {
-        const m = await getMatchups(CURRENT_LEAGUE_ID, w)
-        if (m.length) allWeeks.push({ week: w, matchups: m })
-      } catch { break }
-    }
-
-    const powerRankings = computePowerRankings(allWeeks)
+    const powerRankings = computePowerRankings(weeksThruRecap)
     const prevPowerRankings = recapWeek > 1
-      ? computePowerRankings(allWeeks.filter(w => w.week < recapWeek))
+      ? computePowerRankings(weeksThruRecap.filter(w => w.week < recapWeek))
       : null
 
-    // This week's transactions
-    const transactions = await getTransactions(CURRENT_LEAGUE_ID, recapWeek).catch(() => [])
-    const trades = transactions
-      .filter(t => t.type === 'trade' && t.status === 'complete')
-      .map(t => ({
-        week: recapWeek,
-        robbery_score: 0,
-        participants: Object.entries(t.adds ?? {}).reduce((acc, [pid, rid]) => {
-          let p = acc.find(a => a.roster_id === rid)
-          if (!p) { p = { roster_id: rid, ros_points_received: 0, trade_value_delta: 0, players_received: [] }; acc.push(p) }
-          p.players_received.push(pid)
-          return acc
-        }, [] as Array<{ roster_id: number; ros_points_received: number; trade_value_delta: number; players_received: string[] }>),
-      }))
-
     const awards = computeWeeklyAwards(recapWeek, thisWeekMatchups)
+
+    const [playerNames, playerPositions, playerWeekPoints] = await Promise.all([
+      getPlayerNamesMap(),
+      getPlayerPositionsMap(),
+      getPlayerWeekPointsMap(season, snapshot.totalWeeks),
+    ])
+
+    // Bench tax leader for this specific week
+    const rosterPositions = snapshot.league.roster_positions ?? ['QB','RB','RB','WR','WR','TE','FLEX','BN','BN','BN','BN','BN']
+    const benchTaxThisWeek = computeSeasonBenchTax(
+      [{
+        week: recapWeek,
+        rosters: thisWeekMatchups.map(m => ({
+          roster_id: m.roster_id,
+          starters: m.starters,
+          players: m.players,
+          players_points: m.players_points,
+        })),
+      }],
+      playerPositions,
+      rosterPositions
+    )
+    const worstBenchTax = benchTaxThisWeek.length > 0
+      ? benchTaxThisWeek.reduce((worst, s) => s.worst_week.bench_tax > worst.worst_week.bench_tax ? s : worst)
+      : null
+    const benchTaxLeader = worstBenchTax && worstBenchTax.worst_week.bench_tax > 0
+      ? {
+          roster_id: worstBenchTax.roster_id,
+          bench_tax: worstBenchTax.worst_week.bench_tax,
+          swap_label: buildSwapLabel(worstBenchTax.worst_week.missed_starts, playerNames),
+        }
+      : null
+
+    // Trades this week — real robbery_score via the same grading engine the
+    // Trades page uses, instead of a hardcoded 0.
+    const tradeTxns = (snapshot.weeklyTransactions.find(w => w.week === recapWeek)?.transactions ?? [])
+      .filter(t => t.type === 'trade' && t.status === 'complete')
+      .map(t => ({ transaction_id: t.transaction_id, week: recapWeek, adds: t.adds, drops: t.drops, roster_ids: t.roster_ids }))
+    const tradeResult = computeTradeGrades(tradeTxns, playerWeekPoints, snapshot.totalWeeks, snapshot.totalWeeks, season)
+    const trades = tradeResult.graded_trades.map(gt => ({
+      week: gt.week,
+      robbery_score: gt.robbery_score,
+      participants: gt.participants.map(p => ({
+        roster_id: p.roster_id,
+        ros_points_received: p.ros_points_received,
+        trade_value_delta: p.trade_value_delta,
+        players_received: p.players_received.map(pid => playerNames.get(pid) ?? pid),
+      })),
+    }))
+
+    // Top waiver pickup this week
+    const waiverTxns = (snapshot.weeklyTransactions.find(w => w.week === recapWeek)?.transactions ?? [])
+      .filter(t => t.type === 'waiver' || t.type === 'free_agent')
+      .map(t => ({ transaction_id: t.transaction_id, week: recapWeek, type: t.type, adds: t.adds, drops: t.drops, waiver_budget: t.waiver_budget ?? null }))
+    const isFAAB = (snapshot.league.settings.waiver_type ?? 0) === 2
+    const waiverResult = computeWaiverRoi(waiverTxns, playerWeekPoints, snapshot.totalWeeks, snapshot.totalWeeks, isFAAB, playerNames)
+    const bestAdd = [...waiverResult.adds].sort((a, b) => b.points_gained - a.points_gained)[0] ?? null
+    const topWaiver = bestAdd
+      ? { roster_id: bestAdd.roster_id, player_name: bestAdd.player_name, points_gained: bestAdd.points_gained }
+      : null
 
     // Build matchup display for brief
     const byMatchupId = new Map<number, typeof thisWeekMatchups>()
@@ -125,9 +151,9 @@ export async function GET(req: NextRequest) {
         shouldve_lost: awards.shouldve_lost,
       } : null,
       rosterIdToName,
-      benchTaxLeader: null,  // bench tax not wired to recap generation yet
+      benchTaxLeader,
       trades,
-      topWaiver: null,
+      topWaiver,
     })
 
     const result = await generateAndStoreRecap(CURRENT_LEAGUE_ID, brief)

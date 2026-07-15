@@ -1,7 +1,6 @@
-import { getLeague, getMatchups, getLeagueUsers, getRosters, getNFLState } from '../sleeper'
-import { computePowerRankings, WeekMatchups } from './power'
+import { getSeasonSnapshot } from './season-snapshot'
+import { computePowerRankings } from './power'
 import { computeLuckIndex } from './luck'
-import { getManagerByUsername } from '../managers'
 import { CURRENT_LEAGUE_ID } from '../constants'
 
 export interface StandingsRow {
@@ -23,76 +22,23 @@ export interface StandingsRow {
 }
 
 export async function getStandingsData(leagueId: string = CURRENT_LEAGUE_ID): Promise<StandingsRow[]> {
-  const [nflState, league, rosters, users] = await Promise.all([
-    getNFLState(),
-    getLeague(leagueId),
-    getRosters(leagueId),
-    getLeagueUsers(leagueId),
-  ])
+  const snapshot = await getSeasonSnapshot(leagueId)
 
-  // For the live current season, don't walk past real-world "now". For a
-  // past/completed season, nflState.week is irrelevant — walk the whole thing.
-  const currentWeek = leagueId === CURRENT_LEAGUE_ID
-    ? Math.min(nflState.week, league.settings.playoff_week_start - 1)
-    : league.settings.playoff_week_start - 1
-
-  // Fetch all completed weeks' matchups
-  const weeklyMatchups: WeekMatchups[] = []
-  for (let w = 1; w <= currentWeek; w++) {
-    try {
-      const matchups = await getMatchups(leagueId, w)
-      if (matchups.length > 0) {
-        weeklyMatchups.push({ week: w, matchups })
-      }
-    } catch {
-      // week not available yet — stop
-      break
-    }
-  }
-
-  const powerRankings = computePowerRankings(weeklyMatchups)
-  const luckIndex = computeLuckIndex(weeklyMatchups)
-
-  // Build roster_id → username map
-  const rosterToUser = new Map<number, {
-    username: string | null
-    display_name: string
-    avatar: string | null
-    team_name: string | null
-  }>()
-  for (const roster of rosters) {
-    if (!roster.owner_id) continue
-    const user = users.find(u => u.user_id === roster.owner_id)
-    if (user) {
-      rosterToUser.set(roster.roster_id, {
-        username: user.username,
-        display_name: user.display_name,
-        avatar: user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
-        team_name: user.metadata?.team_name ?? null,
-      })
-    }
-  }
-
-  // Merge power rankings with luck index
+  const powerRankings = computePowerRankings(snapshot.weeklyMatchups)
+  const luckIndex = computeLuckIndex(snapshot.weeklyMatchups)
   const luckByRoster = new Map(luckIndex.map(l => [l.roster_id, l]))
 
   return powerRankings.map(pr => {
-    const userInfo = rosterToUser.get(pr.roster_id)
-    const username = userInfo?.username ?? `roster_${pr.roster_id}`
-    const manager = getManagerByUsername(username)
-
-    // Display name priority: Sleeper team name → manager config team name → username
-    const teamName = userInfo?.team_name || manager?.teamName || null
-    const displayName = teamName ?? username  // handles null team name
-
+    const info = snapshot.rosterInfo.get(pr.roster_id)
+    const username = info?.username ?? `roster_${pr.roster_id}`
     const luck = luckByRoster.get(pr.roster_id)
 
     return {
       roster_id: pr.roster_id,
       username,
-      display_name: displayName,
-      real_name: manager?.realName ?? username,
-      avatar_url: userInfo?.avatar ?? null,
+      display_name: info?.display_name ?? username,
+      real_name: info?.real_name ?? username,
+      avatar_url: info?.avatar_url ?? null,
       wins: pr.wins,
       losses: pr.losses,
       ties: pr.ties,

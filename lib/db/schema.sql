@@ -42,19 +42,6 @@ CREATE TABLE IF NOT EXISTS raw_drafts (
   UNIQUE(draft_id, pick_no)
 );
 
--- computed_stats: generic key-value store for computed weekly/season stat blobs
-CREATE TABLE IF NOT EXISTS computed_stats (
-  id BIGSERIAL PRIMARY KEY,
-  stat_type TEXT NOT NULL,  -- e.g. 'bench_tax', 'power_rankings', 'luck_index'
-  league_id TEXT NOT NULL,
-  season TEXT NOT NULL,
-  week INTEGER,             -- NULL for season-long stats
-  roster_id INTEGER,        -- NULL for league-wide stats
-  data JSONB NOT NULL,
-  computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(stat_type, league_id, season, week, roster_id)
-);
-
 -- ai_recaps: immutable stored recaps, never overwritten
 CREATE TABLE IF NOT EXISTS ai_recaps (
   id BIGSERIAL PRIMARY KEY,

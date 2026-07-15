@@ -45,7 +45,9 @@ export async function getThisWeekData(): Promise<ThisWeekData> {
     if (!roster.owner_id) continue
     const user = users.find(u => u.user_id === roster.owner_id)
     if (!user) continue
-    const manager = getManagerByUsername(user.username)
+    // Sleeper's league-users endpoint no longer returns `username` (always
+    // null) — display_name reliably holds what used to be there.
+    const manager = getManagerByUsername(user.username) ?? getManagerByUsername(user.display_name)
     const teamName = user.metadata?.team_name || manager?.teamName || null
     rosterMap.set(roster.roster_id, {
       display_name: teamName ?? user.display_name,

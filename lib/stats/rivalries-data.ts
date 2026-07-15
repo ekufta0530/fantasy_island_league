@@ -1,6 +1,6 @@
 // lib/stats/rivalries-data.ts
-import { getLeagueHistory, getLeague, getMatchups, getLeagueUsers, getRosters } from '../sleeper'
-import { getManagerByUsername } from '../managers'
+import { getLeagueHistory } from '../sleeper'
+import { getSeasonSnapshot } from './season-snapshot'
 import { CURRENT_LEAGUE_ID } from '../constants'
 
 export interface RivalryRecord {
@@ -30,64 +30,35 @@ export interface RivalriesData {
 }
 
 export async function getRivalriesData(): Promise<RivalriesData> {
-  // Walk full league history chain
+  // Walk full league history chain, then fetch every season's snapshot in
+  // parallel — each season is independent, no reason to do this one at a time.
   const leagueIds = await getLeagueHistory(CURRENT_LEAGUE_ID)
+  const snapshots = await Promise.all(leagueIds.map(id => getSeasonSnapshot(id)))
 
-  let earliest_season = '2025'
-  let latest_season = '2025'
+  let earliest_season = snapshots[0]?.league.season ?? '2025'
+  let latest_season = earliest_season
 
   // Accumulate: username → username → RivalryRecord
   const records = new Map<string, Map<string, RivalryRecord>>()
   // username → display info (use latest season's data)
   const displayInfo = new Map<string, { display_name: string; real_name: string; avatar_url: string | null }>()
 
-  for (const leagueId of leagueIds) {
-    const [league, users, rosters] = await Promise.all([
-      getLeague(leagueId),
-      getLeagueUsers(leagueId),
-      getRosters(leagueId),
-    ])
-
-    const season = league.season
+  for (const snapshot of snapshots) {
+    const season = snapshot.league.season
     if (season < earliest_season) earliest_season = season
     if (season > latest_season) latest_season = season
 
-    // Build roster_id → username + display for this league
-    const rosterToUsername = new Map<number, string>()
-    const rosterToDisplay = new Map<number, string>()
-    const rosterToAvatar = new Map<number, string | null>()
-
-    for (const roster of rosters) {
-      if (!roster.owner_id) continue
-      const user = users.find(u => u.user_id === roster.owner_id)
-      if (!user) continue
-      // Sleeper returns username: null for co-owner accounts that never set one —
-      // fall back to a stable per-user identity key so history still joins correctly.
-      const identity = user.username ?? `uid_${user.user_id}`
-      const mgr = getManagerByUsername(user.username)
-      const teamName = user.metadata?.team_name || mgr?.teamName || null
-      rosterToUsername.set(roster.roster_id, identity)
-      rosterToDisplay.set(roster.roster_id, teamName ?? user.display_name)
-      rosterToAvatar.set(roster.roster_id, user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null)
-
-      // Seed display info (overwrite with latest season data)
-      displayInfo.set(identity, {
-        display_name: teamName ?? user.display_name,
-        real_name: mgr?.realName ?? user.display_name,
-        avatar_url: user.avatar ? `https://sleepercdn.com/avatars/thumbs/${user.avatar}` : null,
+    for (const info of snapshot.rosterInfo.values()) {
+      // Seed display info (overwrite with latest season data — snapshots are
+      // processed oldest-first since getLeagueHistory returns them that way)
+      displayInfo.set(info.username, {
+        display_name: info.display_name,
+        real_name: info.real_name,
+        avatar_url: info.avatar_url,
       })
     }
 
-    // Fetch all regular season weeks
-    const maxWeek = league.settings.playoff_week_start ? league.settings.playoff_week_start - 1 : 17
-    for (let w = 1; w <= maxWeek; w++) {
-      let matchups
-      try {
-        matchups = await getMatchups(leagueId, w)
-        if (!matchups.length) break
-      } catch { break }
-
-      // Group by matchup_id
+    for (const { matchups } of snapshot.weeklyMatchups) {
       const byMatchupId = new Map<number, typeof matchups>()
       for (const m of matchups) {
         if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, [])
@@ -97,11 +68,10 @@ export async function getRivalriesData(): Promise<RivalriesData> {
       for (const [, pair] of byMatchupId) {
         if (pair.length !== 2) continue
         const [a, b] = pair
-        const uA = rosterToUsername.get(a.roster_id)
-        const uB = rosterToUsername.get(b.roster_id)
+        const uA = snapshot.rosterInfo.get(a.roster_id)?.username
+        const uB = snapshot.rosterInfo.get(b.roster_id)?.username
         if (!uA || !uB) continue
 
-        // Ensure both have records maps
         if (!records.has(uA)) records.set(uA, new Map())
         if (!records.has(uB)) records.set(uB, new Map())
 

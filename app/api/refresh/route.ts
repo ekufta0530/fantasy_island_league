@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CRON_SECRET, CURRENT_LEAGUE_ID } from '@/lib/constants'
-import {
-  getNFLState,
-  getLeagueHistory,
-  getLeague,
-  getMatchups,
-  getTransactions,
-  getLeagueDrafts,
-  getDraftPicks,
-  getAllPlayers,
-} from '@/lib/sleeper'
+import { getNFLState, getLeagueHistory, getLeagueDrafts, getDraftPicks, getAllPlayers } from '@/lib/sleeper'
+import { getSeasonSnapshot } from '@/lib/stats/season-snapshot'
 import {
   upsertMatchups,
   upsertTransactions,
@@ -33,7 +25,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const nflState = await getNFLState()
-    const { season, week: currentWeek } = nflState
 
     // Refresh /players/nfl once/day
     if (!(await isNFLPlayersCacheFresh())) {
@@ -43,35 +34,29 @@ export async function GET(req: NextRequest) {
       console.log('[refresh] /players/nfl cached.')
     }
 
-    // Walk full league history chain
+    // Walk full league history chain, fetch every season's snapshot in
+    // parallel — each season is independent, and the snapshot already knows
+    // exactly which weeks have real data (no need to guess from real-time
+    // NFL state, which breaks once a season ends and CURRENT_LEAGUE_ID
+    // hasn't been bumped to the new one yet).
     const leagueIds = await getLeagueHistory(CURRENT_LEAGUE_ID)
     console.log(`[refresh] Processing ${leagueIds.length} league seasons`)
+    const snapshots = await Promise.all(leagueIds.map(id => getSeasonSnapshot(id)))
 
-    for (const leagueId of leagueIds) {
-      const league = await getLeague(leagueId)
-      const leagueSeason = league.season
-      const isCurrentSeason = leagueId === CURRENT_LEAGUE_ID
+    for (const snapshot of snapshots) {
+      const leagueId = snapshot.league.league_id
+      const leagueSeason = snapshot.league.season
 
-      // For historical seasons, pull all 18 regular season weeks; for current, pull up to currentWeek
-      const maxWeek = isCurrentSeason ? currentWeek : 18
-
-      for (let w = 1; w <= maxWeek; w++) {
-        try {
-          const [matchups, transactions] = await Promise.all([
-            getMatchups(leagueId, w),
-            getTransactions(leagueId, w),
-          ])
-          if (matchups.length > 0) {
-            await upsertMatchups(leagueId, leagueSeason, w, matchups)
-          }
-          if (transactions.length > 0) {
-            await upsertTransactions(leagueId, leagueSeason, w, transactions)
-          }
-        } catch (e) {
-          // Some weeks may not exist yet — log and continue
-          console.warn(`[refresh] Skipping ${leagueId} week ${w}: ${e}`)
-        }
-      }
+      await Promise.all([
+        ...snapshot.weeklyMatchups.map(({ week, matchups }) =>
+          upsertMatchups(leagueId, leagueSeason, week, matchups)
+            .catch(e => console.warn(`[refresh] Failed to cache matchups ${leagueId} week ${week}: ${e}`))
+        ),
+        ...snapshot.weeklyTransactions.map(({ week, transactions }) =>
+          upsertTransactions(leagueId, leagueSeason, week, transactions)
+            .catch(e => console.warn(`[refresh] Failed to cache transactions ${leagueId} week ${week}: ${e}`))
+        ),
+      ])
 
       // Fetch draft picks for this league
       try {
@@ -89,8 +74,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      season,
-      week: currentWeek,
+      season: nflState.season,
+      week: nflState.week,
       leaguesProcessed: leagueIds.length,
     })
   } catch (err) {
