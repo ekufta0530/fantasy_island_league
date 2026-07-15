@@ -7,6 +7,10 @@ import { getDraftGradeData } from '@/lib/stats/draft-grade-data'
 import { getTradePageData } from '@/lib/stats/trade-grade-data'
 import { getWaiverRoiData } from '@/lib/stats/waiver-roi-data'
 import { MANAGERS } from '@/lib/managers'
+import { Avatar } from '@/components/Avatar'
+import { SectionHeading } from '@/components/PageHeader'
+import { StatTile } from '@/components/StatTile'
+import { Badge } from '@/components/Badge'
 
 export const revalidate = 300
 
@@ -14,20 +18,9 @@ export function generateStaticParams() {
   return MANAGERS.map(m => ({ username: m.username }))
 }
 
-function StatCard({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) {
-  return (
-    <div className={`rounded-xl border p-4 ${highlight ? 'bg-indigo-950 border-indigo-800' : 'bg-gray-900 border-gray-800'}`}>
-      <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{label}</p>
-      <p className={`text-2xl font-black ${highlight ? 'text-indigo-300' : 'text-white'}`}>{value}</p>
-      {sub && <p className="text-gray-500 text-xs mt-1">{sub}</p>}
-    </div>
-  )
-}
-
 export default async function TeamPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params
 
-  // Fetch base team data + all engine data in parallel
   const [baseData, standings, benchTax, draftGrade, tradeGrade, waiverRoi] = await Promise.allSettled([
     getTeamData(username),
     getStandingsData(),
@@ -61,63 +54,83 @@ export default async function TeamPage({ params }: { params: Promise<{ username:
   })
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white px-4 py-8">
+    <main className="min-h-screen px-4 py-10">
       <div className="max-w-4xl mx-auto">
 
         {/* Header */}
-        <div className="flex items-center gap-5 mb-8">
-          {team.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={team.avatar_url} alt={team.display_name} className="w-20 h-20 rounded-full bg-gray-700" />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-3xl font-black text-white">
-              {team.real_name[0]}
-            </div>
-          )}
+        <div className="flex items-center gap-5 mb-10">
+          <Avatar src={team.avatar_url} name={team.real_name} size="xl" />
           <div>
-            <h1 className="text-4xl font-black tracking-tight">{team.display_name}</h1>
-            <p className="text-gray-400 mt-0.5">{team.real_name} · {team.nfl_team} fan</p>
-            <p className="text-gray-500 text-sm mt-1 max-w-lg">{team.persona_notes}</p>
+            <h1 className="font-display text-4xl font-bold tracking-tight text-ink">{team.display_name}</h1>
+            <p className="text-muted mt-0.5">{team.real_name} · {team.nfl_team} fan</p>
+            <p className="text-faint text-sm mt-1 max-w-lg">{team.persona_notes}</p>
           </div>
         </div>
 
         {/* Season stats grid */}
         <section className="mb-8">
-          <h2 className="text-lg font-bold mb-3 text-gray-300">Season Stats</h2>
+          <SectionHeading title="Season Stats" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Record" value={`${team.wins}–${team.losses}${team.ties > 0 ? `–${team.ties}` : ''}`} />
-            <StatCard label="Points For" value={team.points_for.toFixed(1)} />
-            <StatCard label="Power Rank" value={team.power_rank ? `#${team.power_rank}` : '—'} highlight={team.power_rank === 1} />
-            <StatCard label="Luck Index" value={team.luck_index !== null ? (team.luck_index >= 0 ? `+${team.luck_index.toFixed(2)}` : team.luck_index.toFixed(2)) : '—'} sub={team.luck_index !== null ? (team.luck_index > 0.5 ? '🍀 Lucky schedule' : team.luck_index < -0.5 ? '💀 Rough schedule' : '⚖️ Fair schedule') : undefined} />
+            <StatTile label="Record" value={`${team.wins}–${team.losses}${team.ties > 0 ? `–${team.ties}` : ''}`} />
+            <StatTile label="Points For" value={team.points_for.toFixed(1)} tone="teal" />
+            <StatTile
+              label="Power Rank"
+              value={team.power_rank ? `#${team.power_rank}` : '—'}
+              tone={team.power_rank === 1 ? 'gold' : 'neutral'}
+            />
+            <StatTile
+              label="Luck Index"
+              value={team.luck_index !== null ? (team.luck_index >= 0 ? `+${team.luck_index.toFixed(2)}` : team.luck_index.toFixed(2)) : '—'}
+              sub={team.luck_index !== null ? (team.luck_index > 0.5 ? 'Lucky schedule' : team.luck_index < -0.5 ? 'Rough schedule' : 'Fair schedule') : undefined}
+            />
           </div>
         </section>
 
         {/* Advanced stats */}
         <section className="mb-8">
-          <h2 className="text-lg font-bold mb-3 text-gray-300">Advanced Stats</h2>
+          <SectionHeading title="Advanced Stats" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="🪑 Bench Tax" value={team.bench_tax_total !== null ? team.bench_tax_total.toFixed(1) : '—'} sub={team.bench_tax_rank !== null ? `Rank #${team.bench_tax_rank} (higher = worse)` : undefined} />
-            <StatCard label="📋 Draft Grade" value={team.draft_grade ?? '—'} sub={team.draft_grade_score !== null ? `Score: ${team.draft_grade_score >= 0 ? '+' : ''}${team.draft_grade_score}` : undefined} highlight={team.draft_grade_rank === 1} />
-            <StatCard label="🔄 Trade Δ" value={team.trade_delta !== null ? (team.trade_delta >= 0 ? `+${team.trade_delta.toFixed(1)}` : team.trade_delta.toFixed(1)) : '—'} sub={team.trade_king ? '👑 Trade King' : undefined} highlight={team.trade_king} />
-            <StatCard label="📡 Waiver Pts" value={team.waiver_points !== null ? team.waiver_points.toFixed(1) : '—'} sub={team.waiver_wizard ? '🧙 Waiver Wizard' : undefined} highlight={team.waiver_wizard} />
+            <StatTile
+              label="Bench Tax"
+              value={team.bench_tax_total !== null ? team.bench_tax_total.toFixed(1) : '—'}
+              sub={team.bench_tax_rank !== null ? `Rank #${team.bench_tax_rank} (higher = worse)` : undefined}
+            />
+            <StatTile
+              label="Draft Grade"
+              value={team.draft_grade ?? '—'}
+              sub={team.draft_grade_score !== null ? `Score: ${team.draft_grade_score >= 0 ? '+' : ''}${team.draft_grade_score}` : undefined}
+              tone={team.draft_grade_rank === 1 ? 'gold' : 'neutral'}
+            />
+            <StatTile
+              label="Trade Δ"
+              value={team.trade_delta !== null ? (team.trade_delta >= 0 ? `+${team.trade_delta.toFixed(1)}` : team.trade_delta.toFixed(1)) : '—'}
+              sub={team.trade_king ? 'Trade King' : undefined}
+              tone={team.trade_king ? 'gold' : 'neutral'}
+            />
+            <StatTile
+              label="Waiver Pts"
+              value={team.waiver_points !== null ? team.waiver_points.toFixed(1) : '—'}
+              sub={team.waiver_wizard ? 'Waiver Wizard' : undefined}
+              tone={team.waiver_wizard ? 'gold' : 'neutral'}
+            />
           </div>
         </section>
 
         {/* H2H records */}
         {team.h2h.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-lg font-bold mb-3 text-gray-300">Head-to-Head (This Season)</h2>
+            <SectionHeading title="Head-to-Head (This Season)" />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {team.h2h.map(rec => (
-                <div key={rec.opponent_username} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-                  <p className="font-semibold text-sm">{rec.opponent_display_name}</p>
-                  <p className="text-2xl font-black mt-1">
-                    <span className="text-green-400">{rec.wins}</span>
-                    <span className="text-gray-600">–</span>
-                    <span className="text-red-400">{rec.losses}</span>
-                    {rec.ties > 0 && <span className="text-gray-400">–{rec.ties}</span>}
+                <div key={rec.opponent_username} className="bg-surface border border-hairline rounded-xl p-4">
+                  <p className="font-semibold text-sm text-ink">{rec.opponent_display_name}</p>
+                  <p className="font-display text-2xl font-bold mt-1">
+                    <span className="text-lime-300">{rec.wins}</span>
+                    <span className="text-faint">–</span>
+                    <span className="text-rose-300">{rec.losses}</span>
+                    {rec.ties > 0 && <span className="text-muted">–{rec.ties}</span>}
                   </p>
-                  <p className="text-gray-500 text-xs mt-1">PF: {rec.points_for.toFixed(1)} / PA: {rec.points_against.toFixed(1)}</p>
+                  <p className="text-faint text-xs mt-1">PF: {rec.points_for.toFixed(1)} / PA: {rec.points_against.toFixed(1)}</p>
                 </div>
               ))}
             </div>
@@ -127,12 +140,10 @@ export default async function TeamPage({ params }: { params: Promise<{ username:
         {/* Current roster */}
         {team.current_roster.length > 0 && (
           <section>
-            <h2 className="text-lg font-bold mb-3 text-gray-300">Current Roster</h2>
+            <SectionHeading title="Current Roster" />
             <div className="flex flex-wrap gap-2">
               {team.current_roster.map(name => (
-                <span key={name} className="bg-gray-800 border border-gray-700 text-gray-300 text-sm px-3 py-1 rounded-full">
-                  {name}
-                </span>
+                <Badge key={name} tone="neutral" className="text-sm px-3 py-1">{name}</Badge>
               ))}
             </div>
           </section>

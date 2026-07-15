@@ -1,5 +1,8 @@
 // app/rivalries/page.tsx
 import { getRivalriesData } from '@/lib/stats/rivalries-data'
+import { PageHeader } from '@/components/PageHeader'
+import { EmptyState } from '@/components/EmptyState'
+import { Avatar } from '@/components/Avatar'
 
 export const metadata = { title: 'Rivalries' }
 
@@ -12,9 +15,11 @@ export default async function RivalriesPage() {
     data = await getRivalriesData()
   } catch (err) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <p className="text-gray-400">⚠️ {String(err)}</p>
-      </div>
+      <main className="min-h-screen px-4 py-10">
+        <div className="max-w-5xl mx-auto">
+          <EmptyState icon="🌊" title="Couldn't load rivalries" subtitle={String(err)} />
+        </div>
+      </main>
     )
   }
 
@@ -26,77 +31,61 @@ export default async function RivalriesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white px-4 py-8">
+    <main className="min-h-screen px-4 py-10">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-4xl font-black mb-1 tracking-tight">⚔️ Rivalries</h1>
-        <p className="text-gray-400 text-sm mb-2">
-          All-time head-to-head records — {earliest_season === latest_season ? earliest_season : `${earliest_season}–${latest_season}`} season{earliest_season !== latest_season ? 's' : ''}.
-        </p>
-        <p className="text-gray-600 text-xs mb-8">
-          ⚠️ Sleeper data available from {earliest_season} onward. Pre-Sleeper seasons (Yahoo) are not recoverable via API.
-        </p>
+        <PageHeader
+          eyebrow={earliest_season === latest_season ? earliest_season : `${earliest_season}–${latest_season}`}
+          title="Rivalries"
+          subtitle={`All-time head-to-head records. Sleeper data available from ${earliest_season} onward — pre-Sleeper seasons (Yahoo) aren't recoverable via API.`}
+        />
 
         {/* H2H Grid */}
-        <div className="overflow-x-auto rounded-xl border border-gray-800">
+        <div className="overflow-x-auto rounded-2xl border border-hairline bg-surface">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-gray-900">
-                <th className="px-3 py-3 text-left text-gray-400 font-semibold">Manager</th>
+              <tr className="border-b border-hairline">
+                <th className="px-3 py-3 text-left text-muted font-semibold">Manager</th>
                 {managers.map(col => (
-                  <th key={col.username} className="px-2 py-3 text-center text-gray-400 font-semibold min-w-[80px]">
+                  <th key={col.username} className="px-2 py-3 text-center text-muted font-semibold min-w-20">
                     <div className="flex flex-col items-center gap-1">
-                      {col.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={col.avatar_url} alt="" className="w-6 h-6 rounded-full bg-gray-700" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white">
-                          {col.real_name[0]}
-                        </div>
-                      )}
-                      <span className="truncate max-w-[70px]">{col.real_name}</span>
+                      <Avatar src={col.avatar_url} name={col.real_name} size="sm" />
+                      <span className="truncate max-w-17.5">{col.real_name}</span>
                     </div>
                   </th>
                 ))}
-                <th className="px-3 py-3 text-center text-gray-400 font-semibold">Total</th>
+                <th className="px-3 py-3 text-center text-muted font-semibold">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-hairline">
               {managers.map(row => {
                 const totalWins = managerOrder.reduce((s, col) => col === row.username ? s : s + (getRecord(row.username, col)?.wins ?? 0), 0)
                 const totalLosses = managerOrder.reduce((s, col) => col === row.username ? s : s + (getRecord(row.username, col)?.losses ?? 0), 0)
                 return (
-                  <tr key={row.username} className="hover:bg-gray-900 transition-colors">
+                  <tr key={row.username} className="hover:bg-surface-2 transition-colors">
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-2">
-                        {row.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={row.avatar_url} alt="" className="w-7 h-7 rounded-full bg-gray-700 shrink-0" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                            {row.real_name[0]}
-                          </div>
-                        )}
+                        <Avatar src={row.avatar_url} name={row.real_name} size="sm" className="shrink-0" />
                         <div>
-                          <p className="font-semibold text-white truncate max-w-[100px]">{row.display_name}</p>
-                          <p className="text-gray-500 text-[10px]">{row.real_name}</p>
+                          <p className="font-semibold text-ink truncate max-w-25">{row.display_name}</p>
+                          <p className="text-faint text-[10px]">{row.real_name}</p>
                         </div>
                       </div>
                     </td>
                     {managerOrder.map(colUsername => {
                       if (colUsername === row.username) {
-                        return <td key={colUsername} className="px-2 py-3 text-center text-gray-700 font-bold">—</td>
+                        return <td key={colUsername} className="px-2 py-3 text-center text-faint font-bold">—</td>
                       }
                       const rec = getRecord(row.username, colUsername)
-                      if (!rec) return <td key={colUsername} className="px-2 py-3 text-center text-gray-700">—</td>
+                      if (!rec) return <td key={colUsername} className="px-2 py-3 text-center text-faint">—</td>
                       const isWinning = rec.wins > rec.losses
                       const isLosing = rec.losses > rec.wins
                       return (
-                        <td key={colUsername} className={`px-2 py-3 text-center font-mono font-bold ${isWinning ? 'text-green-400' : isLosing ? 'text-red-400' : 'text-gray-400'}`}>
+                        <td key={colUsername} className={`px-2 py-3 text-center font-mono font-bold ${isWinning ? 'text-lime-300' : isLosing ? 'text-rose-300' : 'text-muted'}`}>
                           {rec.wins}–{rec.losses}{rec.ties > 0 ? `–${rec.ties}` : ''}
                         </td>
                       )
                     })}
-                    <td className={`px-3 py-3 text-center font-mono font-bold ${totalWins > totalLosses ? 'text-green-400' : totalLosses > totalWins ? 'text-red-400' : 'text-gray-400'}`}>
+                    <td className={`px-3 py-3 text-center font-mono font-bold ${totalWins > totalLosses ? 'text-lime-300' : totalLosses > totalWins ? 'text-rose-300' : 'text-muted'}`}>
                       {totalWins}–{totalLosses}
                     </td>
                   </tr>

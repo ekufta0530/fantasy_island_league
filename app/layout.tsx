@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fredoka, Geist, Geist_Mono } from "next/font/google";
+import { Nav } from "@/components/Nav";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const bodySans = Geist({
+  variable: "--font-body",
+  subsets: ["latin"],
+});
+
+const displaySans = Fredoka({
+  variable: "--font-display",
+  weight: ["500", "600", "700"],
   subsets: ["latin"],
 });
 
@@ -39,47 +46,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bodySans.variable} ${displaySans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6 px-6 py-3 bg-gray-950 border-b border-gray-800 text-sm font-medium">
-          <a href="/" className="text-white font-black tracking-tight text-base">🏝️ Fantasy Island</a>
-          <div className="flex items-center gap-5 ml-4 text-gray-400">
-            <a href="/standings" className="hover:text-white transition-colors">Standings</a>
-            <a href="/this-week" className="hover:text-white transition-colors">This Week</a>
-            <a href="/hall-of-fame" className="hover:text-white transition-colors">Hall of Fame</a>
-            <a href="/draft" className="hover:text-white transition-colors">Draft</a>
-            <a href="/trades" className="hover:text-white transition-colors">Trades</a>
-            <a href="/rivalries" className="hover:text-white transition-colors">Rivalries</a>
-            <a href="/archive" className="hover:text-white transition-colors">Archive</a>
-            <a href="/team" className="hover:text-white transition-colors">👥 Teams</a>
-          </div>
-        </nav>
-        {/* Mobile nav */}
-        <nav className="md:hidden bg-gray-950 border-b border-gray-800">
-          <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto scrollbar-none">
-            <a href="/" className="text-white font-black tracking-tight text-sm whitespace-nowrap mr-2">🏝️</a>
-            {[
-              { href: '/standings', label: 'Standings' },
-              { href: '/this-week', label: 'This Week' },
-              { href: '/hall-of-fame', label: 'Hall of Fame' },
-              { href: '/draft', label: 'Draft' },
-              { href: '/trades', label: 'Trades' },
-              { href: '/rivalries', label: 'Rivalries' },
-              { href: '/archive', label: 'Archive' },
-              { href: '/team', label: '👥 Teams' },
-            ].map(link => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="whitespace-nowrap px-3 py-1.5 rounded-full bg-gray-800 text-gray-300 text-xs font-medium hover:bg-gray-700 hover:text-white transition-colors flex-shrink-0"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-        </nav>
+        <Nav />
         {children}
       </body>
     </html>
