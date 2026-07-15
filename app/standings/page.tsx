@@ -44,6 +44,25 @@ export default async function StandingsPage() {
     )
   }
 
+  if (rows.length === 0) {
+    return (
+      <main className="min-h-screen px-4 py-10">
+        <div className="max-w-5xl mx-auto">
+          <PageHeader
+            eyebrow="The pecking order"
+            title="Standings"
+            subtitle="Power rank = 50% record + 30% total PF + 20% last-3-week PF. Luck index = actual wins minus expected wins if you'd played everyone every week."
+          />
+          <EmptyState
+            icon="🏈"
+            title="Season hasn't kicked off yet"
+            subtitle="Standings will populate once Week 1 games are in the books."
+          />
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen px-4 py-10">
       <div className="max-w-5xl mx-auto">
