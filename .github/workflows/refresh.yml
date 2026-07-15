@@ -1,0 +1,45 @@
+name: Refresh Fantasy Data
+
+on:
+  schedule:
+    # Daily at 8:00 UTC — NFL players cache
+    - cron: '0 8 * * *'
+    # Tuesday 14:00 UTC — full weekly refresh
+    - cron: '0 14 * * 2'
+    # Every 6 hours — transaction poll
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  refresh-players:
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh NFL players cache
+        run: |
+          curl -s -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/refresh-players" \
+            | jq '.'
+
+  refresh-full:
+    if: github.event.schedule == '0 14 * * 2' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Full weekly refresh
+        run: |
+          curl -s -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/refresh" \
+            | jq '.'
+
+  refresh-transactions:
+    if: github.event.schedule == '0 */6 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Transaction poll
+        run: |
+          curl -s -f \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/refresh" \
+            | jq '.ok'

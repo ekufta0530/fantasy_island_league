@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "fermentId": "019f3894-802a-72f9-a614-24ef555058b3",
+  "phaseId": "phase-1",
+  "phaseName": "Foundation — Next.js scaffold + Sleeper data layer",
+  "attempt": 1,
+  "timestamp": "2026-07-06T18:18:54.040Z",
+  "goal": "Runnable Next.js app with Tailwind, Supabase schema, Sleeper API client (all endpoints), caching layer, manager config file, and NFL state/player cache seeded.",
+  "summary": "Phase 1 complete. All 7 steps delivered: Next.js 15 App Router scaffold with TypeScript + Tailwind; Supabase schema (6 tables) + lazy-init client; fully typed Sleeper API client (14 endpoints, confirmed stats path); server-side caching layer with /api/refresh (full history walk, matchups/transactions/drafts upsert, players once/day gate) and /api/refresh-players; league history chain discovered (2 seasons: 2024 + 2025, Sleeper boundary documented); manager personas config (all 6 managers, Liz null-team handled, getDisplayName helper); and Vercel Cron + GitHub Actions scheduling. npm run build exits 0 throughout.",
+  "stepSummaries": "  1. Init Next.js 14 App Router project with Tailwind, TypeScript, and ESLint; commit base scaffold. [verified]\n  2. Add Supabase client + schema migrations: tables for raw_matchups, raw_players, raw_transactions, raw_drafts, computed_stats, ai_recaps, nfl_players_cache. [verified]\n  3. Build Sleeper API client module (lib/sleeper.ts): typed fetch wrappers for all §3 endpoints — league, rosters, users, matchups, transactions, traded_picks, drafts, draft_picks, stats/nfl/regular, state/nfl, players/nfl. Confirm stats endpoint path GET /v1/stats/nfl/regular/{season}/{week}. [verified]\n  4. Build server-side caching layer: /api/refresh route that fetches + upserts all data for current and historical weeks; /players/nfl fetch gated to once/day. [verified]\n  5. Walk previous_league_id chain (from 1125843202461839360 back as far as it goes) and seed historical matchup/roster data. [verified]\n  6. Create lib/managers.ts config file with all 6 manager personas from §0 (Sleeper username, real name, team name, persona notes, fan affiliation); export typed ManagerConfig array. Handle Liz's blank team name. [verified]\n  7. Wire Vercel Cron (vercel.json) + GitHub Action fallback for Tuesday morning /api/refresh and daily /api/refresh-players. [verified]",
+  "diffAvailable": false,
+  "flags": [],
+  "derivedGrade": "A",
+  "reviewerRationale": "All gates pass; project checks validate.",
+  "gateVerdicts": [
+    {
+      "id": "F1",
+      "verdict": "pass",
+      "rationale": "Every step had real build-level verification (npm run build, npx tsc --noEmit, jq output) rather than pure proxy checks; step 5 had a live Sleeper API curl confirming the history chain depth.",
+      "evidence": "Step 1: BUILD OK; Step 2: SCHEMA OK; Step 3: tsc --noEmit clean; Step 4: build shows ƒ /api/refresh; Step 5: live curl confirmed 2-season chain; Step 6: tsc --noEmit clean; Step 7: jq .crons|length = 3 + build OK"
+    },
+    {
+      "id": "F2",
+      "verdict": "pass",
+      "rationale": "Phase goal was 'Runnable Next.js app with Tailwind, Supabase schema, Sleeper API client, caching layer, manager config file' — all delivered and compiling clean.",
+      "evidence": "npm run build output shows: / (static), /api/debug/history (ƒ), /api/refresh (ƒ), /api/refresh-players (ƒ) — app is runnable with correct route structure"
+    },
+    {
+      "id": "F3",
+      "verdict": "pass",
+      "rationale": "Nothing deferred: Supabase env vars are not wired in local .env.local (intentional — user must configure their own Supabase project), but this is documented in README.md and .env.local.example, not deferred work.",
+      "evidence": "README.md documents env var setup; .env.local.example lists all 4 required vars; no step was skipped or left incomplete"
+    }
+  ],
+  "projectChecks": {
+    "discovered": true,
+    "anyFailed": false,
+    "commands": [
+      {
+        "kind": "lint",
+        "command": "npm run lint",
+        "exitCode": 0,
+        "durationMs": 0,
+        "timedOut": false
+      }
+    ]
+  }
+}
