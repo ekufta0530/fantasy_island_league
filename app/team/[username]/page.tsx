@@ -6,11 +6,12 @@ import { getBenchTaxData } from '@/lib/stats/bench-tax-data'
 import { getDraftGradeData } from '@/lib/stats/draft-grade-data'
 import { getTradePageData } from '@/lib/stats/trade-grade-data'
 import { getWaiverRoiData } from '@/lib/stats/waiver-roi-data'
-import { MANAGERS } from '@/lib/managers'
+import { MANAGERS, getManagerByUsername } from '@/lib/managers'
 import { Avatar } from '@/components/Avatar'
 import { SectionHeading } from '@/components/PageHeader'
 import { StatTile } from '@/components/StatTile'
 import { Badge } from '@/components/Badge'
+import { EmptyState } from '@/components/EmptyState'
 
 export const revalidate = 300
 
@@ -21,6 +22,9 @@ export function generateStaticParams() {
 export default async function TeamPage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params
 
+  // A username that isn't in our roster config is a real 404 — no point fetching.
+  if (!getManagerByUsername(username)) notFound()
+
   const [baseData, standings, benchTax, draftGrade, tradeGrade, waiverRoi] = await Promise.allSettled([
     getTeamData(username),
     getStandingsData(),
@@ -30,7 +34,20 @@ export default async function TeamPage({ params }: { params: Promise<{ username:
     getWaiverRoiData(),
   ])
 
-  const base = baseData.status === 'fulfilled' ? baseData.value : null
+  // A rejection here means an upstream fetch (Sleeper/Supabase) failed —
+  // that's a data-layer problem, not a missing page, so show the real error
+  // instead of a silent 404.
+  if (baseData.status === 'rejected') {
+    return (
+      <main className="min-h-screen px-4 py-10">
+        <div className="max-w-4xl mx-auto">
+          <EmptyState icon="🌊" title="Couldn't load this team" subtitle={String(baseData.reason)} />
+        </div>
+      </main>
+    )
+  }
+
+  const base = baseData.value
   if (!base) notFound()
 
   const team = enrichTeamData(base, {
